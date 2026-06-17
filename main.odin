@@ -61,17 +61,21 @@ drawASCII :: proc(terrain: TerrainMap) {
 
 getTileRayLibColor :: proc(terrain: f32, moisture: f32) -> rl.Color {
 	WATER :: 0.4
+	BEACH :: 0.45
 	PLAINS :: 0.6
-	FOREST :: 0.9
+	FOREST :: 0.8
+	MOUTAINS :: 0.8
 
 	if (terrain < WATER) {return RL_BLUE}
+	if (terrain < BEACH) {return RL_YELLOW}
+	if (terrain >= MOUTAINS) {return RL_BROWN}
 
 	if (moisture < PLAINS) {return RL_LGREEN}
-	if (moisture < FOREST) {return RL_DGREEN}
-	return RL_BROWN
+	return RL_DGREEN
 }
 
 RL_BLUE :: rl.Color{40, 157, 235, 255}
+RL_YELLOW :: rl.Color{245, 238, 149, 255}
 RL_LGREEN :: rl.Color{114, 212, 145, 255}
 RL_DGREEN :: rl.Color{42, 115, 15, 255}
 RL_BROWN :: rl.Color{112, 73, 11, 255}
