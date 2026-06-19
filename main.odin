@@ -174,21 +174,25 @@ main :: proc() {
 
 	DisplayMode :: enum {
 		Map,
-		NoiseMap,
-		MoistureMap,
+		ElevationMap,
+		TemperatureMap,
+		HumidityMap,
 	}
 
 	displayMode := DisplayMode.Map
 	for !rl.WindowShouldClose() {
 		/* INPUT */
-		if (rl.IsKeyPressed(rl.KeyboardKey.Z)) {
+		if (rl.IsKeyReleased(rl.KeyboardKey.Z)) {
 			displayMode = .Map
 		}
-		if (rl.IsKeyPressed(rl.KeyboardKey.X)) {
-			displayMode = .NoiseMap
+		if (rl.IsKeyReleased(rl.KeyboardKey.X)) {
+			displayMode = .ElevationMap
 		}
-		if (rl.IsKeyPressed(rl.KeyboardKey.C)) {
-			displayMode = .MoistureMap
+		if (rl.IsKeyReleased(rl.KeyboardKey.C)) {
+			displayMode = .TemperatureMap
+		}
+		if (rl.IsKeyReleased(rl.KeyboardKey.V)) {
+			displayMode = .HumidityMap
 		}
 
 		/* DRAW */
@@ -212,7 +216,7 @@ main :: proc() {
 				)
 			}
 
-		case .NoiseMap:
+		case .ElevationMap:
 			for _, i in _map.elevation {
 				luminosity := cast(u8)(_map.elevation[i] * 255)
 				rl.DrawRectangle(
@@ -224,7 +228,19 @@ main :: proc() {
 				)
 			}
 
-		case .MoistureMap:
+		case .TemperatureMap:
+			for _, i in _map.elevation {
+				luminosity := cast(u8)(_map.temperature[i] * 255)
+				rl.DrawRectangle(
+					posX = cast(c.int)(tileWidth * (cast(u64)i % _map.width)),
+					posY = cast(c.int)(tileHeight * (cast(u64)i / _map.width)),
+					width = cast(c.int)tileWidth,
+					height = cast(c.int)tileHeight,
+					color = rl.Color{luminosity, luminosity, luminosity, 255},
+				)
+			}
+
+		case .HumidityMap:
 			for _, i in _map.elevation {
 				luminosity := cast(u8)(_map.humidity[i] * 255)
 				rl.DrawRectangle(
