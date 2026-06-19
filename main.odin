@@ -10,17 +10,23 @@ import "terrain"
 
 import "core:c"
 import "core:math"
+import "core:math/linalg/glsl"
 import "core:math/noise"
 import "core:math/rand"
 
 import rl "vendor:raylib"
 
 /* RAYLIB COLORS */
-COLOR_DEEP_OCEAN :: rl.Color{20, 40, 120, 255}
-COLOR_OCEAN :: rl.Color{40, 80, 180, 255}
+COLOR_DEEP_ABYSS :: rl.Color{5, 20, 60, 255}
+COLOR_COLD_DEEP_OCEAN :: rl.Color{35, 85, 160, 255}
+COLOR_WARM_DEEP_OCEAN :: rl.Color{15, 45, 130, 255}
 
-COLOR_WARM_BEACH :: rl.Color{240, 225, 170, 255}
+COLOR_COLD_OCEAN :: rl.Color{80, 140, 210, 255}
+COLOR_WARM_OCEAN :: rl.Color{40, 90, 190, 255}
+
 COLOR_COLD_BEACH :: rl.Color{180, 190, 200, 255}
+COLOR_WARM_BEACH :: rl.Color{240, 225, 170, 255}
+COLOR_SANDY_DIRT :: rl.Color{200, 180, 120, 255}
 
 COLOR_TUNDRA :: rl.Color{175, 185, 165, 255}
 
@@ -28,7 +34,7 @@ COLOR_GRASSLAND :: rl.Color{145, 185, 95, 255}
 COLOR_FOREST :: rl.Color{55, 130, 75, 255}
 COLOR_SWAMP :: rl.Color{45, 105, 95, 255}
 
-COLOR_DESERT :: rl.Color{220, 170, 80, 255} // Maybe this could be the same as warm beach
+COLOR_DESERT :: rl.Color{220, 170, 80, 255}
 COLOR_SAVANNA :: rl.Color{190, 165, 85, 255}
 COLOR_RAINFOREST :: rl.Color{15, 95, 45, 255}
 
@@ -37,11 +43,29 @@ COLOR_COLD_MOUNTAIN :: rl.Color{200, 205, 210, 255}
 COLOR_WARM_MOUNTAIN :: rl.Color{140, 145, 150, 255}
 COLOR_HOT_MOUNTAIN :: rl.Color{120, 90, 60, 255}
 
+// Linear interpolation; move from a to b by t
+lerp :: proc(a, b, t: f32) -> f32 {
+	if t <= 0 {return a}
+	if t >= 1 {return b}
+
+	return a + (b - a) * t
+}
+
+lerpColor :: proc(a, b: rl.Color, t: f32) -> rl.Color {
+	return rl.Color {
+		cast(u8)lerp(cast(f32)a.r, cast(f32)b.r, t),
+		cast(u8)lerp(cast(f32)a.g, cast(f32)b.g, t),
+		cast(u8)lerp(cast(f32)a.b, cast(f32)b.b, t),
+		255,
+	}
+}
+
 getTileRayLibColor :: proc(elevation, temperature, humidity: f32) -> rl.Color {
 	DEEP := elevation < 0.25
 	SEA_LEVEL := !DEEP && elevation < 0.40
 	COAST := !DEEP && !SEA_LEVEL && elevation < 0.45
 	HIGH := elevation >= 0.85
+	mountainLevel := glsl.smoothstep(0.82, 0.88, elevation)
 
 	COLD := temperature < 0.3
 	WARM := !COLD && temperature < 0.7
@@ -52,62 +76,62 @@ getTileRayLibColor :: proc(elevation, temperature, humidity: f32) -> rl.Color {
 	HUMID := humidity >= 0.6
 
 	if DEEP {
-		return COLOR_DEEP_OCEAN
+		depth := elevation / 0.25
+		depth = clamp(depth, 0, 1)
+		depth = depth * depth
+
+		base := lerpColor(COLOR_COLD_DEEP_OCEAN, COLOR_WARM_DEEP_OCEAN, temperature)
+
+		// The deeper, the darker
+		return lerpColor(COLOR_DEEP_ABYSS, base, depth)
 	}
 
 	if SEA_LEVEL {
-		return COLOR_OCEAN
+		return lerpColor(COLOR_COLD_OCEAN, COLOR_WARM_OCEAN, temperature)
 	}
 
 	if COAST {
-		if COLD {
-			return COLOR_COLD_BEACH
-		}
+		beach := lerpColor(COLOR_COLD_BEACH, COLOR_WARM_BEACH, temperature)
 
-		return COLOR_WARM_BEACH
+		// Soften inland transition slightly using humidity
+		landInfluence := humidity * 0.3
+
+		return lerpColor(beach, COLOR_SANDY_DIRT, landInfluence)
+	}
+
+	landColor: rl.Color
+
+	// tundra -> sparse forest -> forest
+	if COLD {
+		landColor = lerpColor(COLOR_TUNDRA, COLOR_FOREST, humidity)
+	}
+
+	// desert -> savanna -> grassland -> forest -> rainforest
+	if DRY {
+		landColor = lerpColor(COLOR_DESERT, COLOR_SAVANNA, temperature)
+	}
+
+	if HUMID {
+		landColor = lerpColor(COLOR_FOREST, COLOR_RAINFOREST, humidity)
+	}
+
+	if !COLD && !DRY && !HUMID {
+		landColor = lerpColor(COLOR_GRASSLAND, COLOR_FOREST, humidity)
 	}
 
 	if HIGH {
 		if COLD {
-			return COLOR_COLD_MOUNTAIN
+			return lerpColor(landColor, COLOR_COLD_MOUNTAIN, mountainLevel)
 		}
 
 		if WARM {
-			return COLOR_WARM_MOUNTAIN
+			return lerpColor(landColor, COLOR_WARM_MOUNTAIN, mountainLevel)
 		}
 
-		return COLOR_HOT_MOUNTAIN
+		return lerpColor(landColor, COLOR_HOT_MOUNTAIN, mountainLevel)
 	}
 
-	if COLD {
-		if humidity < 0.5 {
-			return COLOR_TUNDRA
-		}
-
-		return COLOR_FOREST
-	}
-
-	if WARM {
-		if humidity < 0.3 {
-			return COLOR_GRASSLAND
-		}
-
-		if humidity < 0.8 {
-			return COLOR_FOREST
-		}
-
-		return COLOR_SWAMP
-	}
-
-	if DRY {
-		return COLOR_DESERT
-	}
-
-	if TEMPERATE {
-		return COLOR_SAVANNA
-	}
-
-	return COLOR_RAINFOREST
+	return landColor
 }
 
 noise2d :: proc(seed: i64, x: f64, y: f64) -> f32 {
