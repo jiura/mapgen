@@ -18,38 +18,68 @@ import rl "vendor:raylib"
 /* RAYLIB COLORS */
 COLOR_DEEP_OCEAN :: rl.Color{20, 40, 120, 255}
 COLOR_OCEAN :: rl.Color{40, 80, 180, 255}
-COLOR_BEACH :: rl.Color{235, 215, 125, 255}
+
+COLOR_WARM_BEACH :: rl.Color{240, 225, 170, 255}
+COLOR_COLD_BEACH :: rl.Color{180, 190, 200, 255}
 
 COLOR_TUNDRA :: rl.Color{175, 185, 165, 255}
+
 COLOR_GRASSLAND :: rl.Color{145, 185, 95, 255}
 COLOR_FOREST :: rl.Color{55, 130, 75, 255}
 COLOR_SWAMP :: rl.Color{45, 105, 95, 255}
 
-COLOR_DESERT :: rl.Color{235, 215, 125, 255}
+COLOR_DESERT :: rl.Color{220, 170, 80, 255} // Maybe this could be the same as warm beach
 COLOR_SAVANNA :: rl.Color{190, 165, 85, 255}
 COLOR_RAINFOREST :: rl.Color{15, 95, 45, 255}
 
 COLOR_MOUNTAIN :: rl.Color{112, 73, 11, 255}
+COLOR_COLD_MOUNTAIN :: rl.Color{200, 205, 210, 255}
+COLOR_WARM_MOUNTAIN :: rl.Color{140, 145, 150, 255}
+COLOR_HOT_MOUNTAIN :: rl.Color{120, 90, 60, 255}
 
 getTileRayLibColor :: proc(elevation, temperature, humidity: f32) -> rl.Color {
-	if elevation < 0.25 {
+	DEEP := elevation < 0.25
+	SEA_LEVEL := !DEEP && elevation < 0.40
+	COAST := !DEEP && !SEA_LEVEL && elevation < 0.45
+	HIGH := elevation >= 0.85
+
+	COLD := temperature < 0.3
+	WARM := !COLD && temperature < 0.7
+	HOT := temperature >= 0.7
+
+	DRY := humidity < 0.3
+	TEMPERATE := !DRY && humidity < 0.6
+	HUMID := humidity >= 0.6
+
+	if DEEP {
 		return COLOR_DEEP_OCEAN
 	}
 
-	if elevation < 0.40 {
+	if SEA_LEVEL {
 		return COLOR_OCEAN
 	}
 
-	if elevation < 0.45 {
-		return COLOR_BEACH
+	if COAST {
+		if COLD {
+			return COLOR_COLD_BEACH
+		}
+
+		return COLOR_WARM_BEACH
 	}
 
-	if elevation > 0.85 {
-		return COLOR_MOUNTAIN
+	if HIGH {
+		if COLD {
+			return COLOR_COLD_MOUNTAIN
+		}
+
+		if WARM {
+			return COLOR_WARM_MOUNTAIN
+		}
+
+		return COLOR_HOT_MOUNTAIN
 	}
 
-	/* COLD */
-	if temperature < 0.3 {
+	if COLD {
 		if humidity < 0.5 {
 			return COLOR_TUNDRA
 		}
@@ -57,8 +87,7 @@ getTileRayLibColor :: proc(elevation, temperature, humidity: f32) -> rl.Color {
 		return COLOR_FOREST
 	}
 
-	/* MILD */
-	if temperature < 0.7 {
+	if WARM {
 		if humidity < 0.3 {
 			return COLOR_GRASSLAND
 		}
@@ -70,12 +99,11 @@ getTileRayLibColor :: proc(elevation, temperature, humidity: f32) -> rl.Color {
 		return COLOR_SWAMP
 	}
 
-	/* BRAZIL */
-	if humidity < 0.3 {
+	if DRY {
 		return COLOR_DESERT
 	}
 
-	if humidity < 0.6 {
+	if TEMPERATE {
 		return COLOR_SAVANNA
 	}
 
@@ -118,17 +146,19 @@ main :: proc() {
 	seedTemperature: i64 = rand.int64_range(min(i64), max(i64))
 	seedHumidity: i64 = rand.int64_range(min(i64), max(i64))
 
-	zoomFactor: f64 = 0.05
+	zoomElevation: f64 = 0.02
+	zoomTemperature: f64 = 0.01
+	zoomHumidity: f64 = 0.01
 
 	for x: u64 = 0; x < _map.width; x += 1 {
 		for y: u64 = 0; y < _map.height; y += 1 {
-			e := getNoiseValForXY(seedElevation, zoomFactor, x, y)
+			e := getNoiseValForXY(seedElevation, zoomElevation, x, y)
 			append(&_map.elevation, e)
 
-			t := getNoiseValForXY(seedTemperature, zoomFactor, x, y)
+			t := getNoiseValForXY(seedTemperature, zoomTemperature, x, y)
 			append(&_map.temperature, t)
 
-			h := getNoiseValForXY(seedHumidity, zoomFactor, x, y)
+			h := getNoiseValForXY(seedHumidity, zoomHumidity, x, y)
 			append(&_map.humidity, h)
 		}
 	}
@@ -167,7 +197,11 @@ main :: proc() {
 		switch (displayMode) {
 		case .Map:
 			for _, i in _map.elevation {
-				tileColor := getTileRayLibColor(_map.elevation[i], _map.temperature[i], _map.humidity[i])
+				tileColor := getTileRayLibColor(
+					_map.elevation[i],
+					_map.temperature[i],
+					_map.humidity[i],
+				)
 
 				rl.DrawRectangle(
 					posX = cast(c.int)(tileWidth * (cast(u64)i % _map.width)),
